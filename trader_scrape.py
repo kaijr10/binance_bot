@@ -2,6 +2,7 @@
 import time
 import os
 import pandas as pd
+import argparse
 from openpyxl import load_workbook
 
 from selenium import webdriver
@@ -51,9 +52,9 @@ class WebTable(object):
 
 class ExcelSaver(object):
 
-    def __init__(self, data):
+    def __init__(self, data, trader_name):
         self.data = data
-        self.file_name = "output.xlsx"
+        self.file_name = trader_name + ".xlsx"
     
     def write_excel(self, truncate_sheet=False, sheet_name='Sheet1', startrow=None):
         if self.data:
@@ -117,15 +118,20 @@ class Driver(object):
 
 class Strategy(object):
 
-    def __init__(self, url):
-        self.url = url
-        self.driver = Driver(url).get_driver()
+    def __init__(self, args):
+        self.url = args.url
+        self.driver = Driver(self.url).get_driver()
     
     def main(self):
         old_data = []
         while True:
             # waiting for the browser redered successful
             wait = WebDriverWait(self.driver, 20)
+
+            # Get trader name as output file
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".css-1kmpww2")))
+            trader_name = self.driver.find_elements_by_css_selector(".css-1kmpww2")
+            trader_name = trader_name[0].text
             # find tab position click it 
             element = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id=\"tab-MYPOSITIONS\"]")))
             element.click()
@@ -140,7 +146,7 @@ class Strategy(object):
             print(row_data)
             if self.compare_data(old_data, row_data):
                 # Save Data to excel
-                excel_saver = ExcelSaver(self.compare_data(old_data, row_data))
+                excel_saver = ExcelSaver(self.compare_data(old_data, row_data), trader_name)
                 excel_saver.write_excel()
                 old_data = row_data
 
@@ -167,6 +173,17 @@ class Strategy(object):
         print(result_data)
         return result_data
 
+def parser_args():
+    # initiate parser
+    parser = argparse.ArgumentParser(description="The binance bot to get price and entry price of symbols")
+
+    # add arguments
+    parser.add_argument('-i', '--url', type=str, required=True, help="The url of trader")
+    
+    args = parser.parse_args()
+    
+    return args
+
 if __name__ == '__main__':
-    strategy = Strategy("https://www.binance.com/en/futures-activity/leaderboard?type=myProfile&encryptedUid=D64DDD2177FA081E3F361F70C703A562")
+    strategy = Strategy(parser_args())
     strategy.main()
